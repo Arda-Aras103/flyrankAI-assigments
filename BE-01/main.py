@@ -13,6 +13,11 @@ class TaskCreate(BaseModel):
     title: str | None = None
 
 
+class TaskUpdate(BaseModel):
+    title: str | None = None
+    done: bool | None = None
+
+
 app = FastAPI()
 task_list = [
     Task(id=1, title="Learn FastAPI", done=False),
@@ -65,3 +70,33 @@ async def create_task(task: TaskCreate):
     task_list.append(new_task)
 
     return new_task
+
+
+@app.put("/tasks/{task_id}")
+async def update_task(task_id: int, task_update: TaskUpdate):
+    if task_update.title is None and task_update.done is None:
+        return JSONResponse(status_code=400, content={"error": "Bad Request"})
+
+    if task_update.title is not None and not task_update.title.strip():
+        return JSONResponse(status_code=400, content={"error": "Bad Request"})
+
+    for task in task_list:
+        if task.id == task_id:
+            if task_update.title is not None:
+                task.title = task_update.title
+            if task_update.done is not None:
+                task.done = task_update.done
+
+            return task
+
+    return JSONResponse(status_code=404, content={"error": "Unknown id"})
+
+
+@app.delete("/tasks/{task_id}", status_code=204)
+async def delete_task(task_id: int):
+    for task in task_list:
+        if task.id == task_id:
+            task_list.remove(task)
+            return
+
+    return JSONResponse(status_code=404, content={"error": "Unknown id"})
