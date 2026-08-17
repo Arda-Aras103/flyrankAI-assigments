@@ -28,21 +28,25 @@ task_list = [
 
 @app.get("/")
 async def root():
+    """Returns basic info about the API."""
     return {"name": "Task API", "version": "1.0", "endpoints": ["/tasks"]}
 
 
 @app.get("/health")
 async def get_health():
+    """Health check endpoint."""
     return {"status": "ok"}
 
 
 @app.get("/tasks")
 async def get_tasks():
+    """Returns the full list of tasks."""
     return task_list
 
 
 @app.get("/tasks/{id}")
 async def get_tasks_by_id(id: int):
+    """Returns a single task by id, or 404 if not found."""
     for task in task_list:
         if task.id == id:
             return task
@@ -52,6 +56,7 @@ async def get_tasks_by_id(id: int):
 
 @app.post("/tasks", status_code=201)
 async def create_task(task: TaskCreate):
+    """Creates a new task with the given title. 400 if title is missing or empty."""
     if not task.title or not task.title.strip():
         return JSONResponse(status_code=400, content={"error": "Bad Request"})
 
@@ -74,6 +79,7 @@ async def create_task(task: TaskCreate):
 
 @app.put("/tasks/{task_id}")
 async def update_task(task_id: int, task_update: TaskUpdate):
+    """Updates a task's title and/or done status. 404 if not found, 400 if body is empty or invalid."""
     if task_update.title is None and task_update.done is None:
         return JSONResponse(status_code=400, content={"error": "Bad Request"})
 
@@ -94,6 +100,7 @@ async def update_task(task_id: int, task_update: TaskUpdate):
 
 @app.delete("/tasks/{task_id}", status_code=204)
 async def delete_task(task_id: int):
+    """Deletes a task by id. 404 if not found."""
     for task in task_list:
         if task.id == task_id:
             task_list.remove(task)
