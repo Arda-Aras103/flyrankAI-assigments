@@ -20,3 +20,10 @@ htmlcov/
 .env
 .env.*
 !.env.example
+
+BE-02/tasks.db
+
+BE-02/__pycache__/
+
+__pycache__/
+
