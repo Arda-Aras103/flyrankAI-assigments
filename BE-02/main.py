@@ -123,28 +123,40 @@ async def update_task(
     if task_update.title is not None and not task_update.title.strip():
         return JSONResponse(status_code=400, content={"error": "Bad Request"})
 
-    task = session.get(Task, task_id)
+    task = (
+        session.exec(
+            text(
+                "UPDATE tasks SET title = COALESCE(:title, title), done = COALESCE(:done, done) WHERE id = :id RETURNING id, title, done"
+            ),
+            params={
+                "id": task_id,
+                "title": task_update.title,
+                "done": task_update.done,
+            },
+        )
+        .mappings()
+        .first()
+    )  # type:ignore
+    session.commit()
     if not task:
         return JSONResponse(status_code=404, content={"error": "Unknown id"})
 
-    if task_update.title is not None:
-        task.title = task_update.title
-    if task_update.done is not None:
-        task.done = task_update.done
-
-    session.add(task)
-    session.commit()
-    session.refresh(task)
     return task
 
 
 @app.delete("/tasks/{task_id}", status_code=204)
 async def delete_task(task_id: int, session: Session = Depends(get_session)):
     """Deletes a task by id. 404 if not found."""
-    task = session.get(Task, task_id)
+    task = (
+        session.exec(
+            text("DELETE FROM tasks WHERE id = :id RETURNING id"),
+            params={"id": task_id},
+        )
+        .mappings()
+        .first()
+    )  # type:ignore
+    session.commit()
     if not task:
         return JSONResponse(status_code=404, content={"error": "Unknown id"})
 
-    session.delete(task)
-    session.commit()
     return
