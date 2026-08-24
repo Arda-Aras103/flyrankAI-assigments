@@ -1,4 +1,22 @@
-## Exploring SQLite by hand
+## Database
+
+This project uses **SQLite** because it needs zero setup (no server to install or configure), stores everything in a single file, and survives restarts without any extra infrastructure — ideal for a small task API.
+
+The database file `tasks.db` is created automatically on first run, in the project root. It is git-ignored, so every fresh clone starts with a clean database that gets seeded automatically.
+
+### Running the project
+
+```bash
+cd BE-02
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
+
+On first run, `tasks.db` is created and seeded with three example tasks automatically. No manual setup required.
+
+### Exploring SQLite by hand
 
 Ran queries directly against `tasks.db` using the sqlite3 CLI:
 
