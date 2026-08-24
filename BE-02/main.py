@@ -93,15 +93,22 @@ async def get_tasks_by_id(task_id: int, session: Session = Depends(get_session))
 
 
 @app.post("/tasks", status_code=201)
-async def create_task(task: TaskCreate, session: Session = Depends(get_session)):
+async def create_task(task_create: TaskCreate, session: Session = Depends(get_session)):
     """Creates a new task with the given title. 400 if title is missing or empty."""
-    if not task.title or not task.title.strip():
+    if not task_create.title or not task_create.title.strip():
         return JSONResponse(status_code=400, content={"error": "Bad Request"})
 
-    new_task = Task(title=task.title)
-    session.add(new_task)
+    new_task = (
+        session.exec(
+            text(
+                "INSERT INTO tasks (title, done) VALUES (:title, :done) RETURNING id,title,done"
+            ),
+            params={"title": task_create.title, "done": False},
+        )
+        .mappings()
+        .first()
+    )  # type :ignore
     session.commit()
-    session.refresh(new_task)
     return new_task
 
 
