@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlmodel import Field, Session, SQLModel, create_engine, func, select
 
 
@@ -36,7 +37,7 @@ def create_db_and_tables():
                 [
                     Task(title="Learn FastAPI"),
                     Task(title="Build Task API"),
-                    Task(title="Write Tests"),
+                    Task(title="Write Tasks"),
                 ]
             )
             session.commit()
@@ -72,18 +73,22 @@ async def get_health():
 @app.get("/tasks")
 async def get_tasks(session: Session = Depends(get_session)):
     """Returns the full list of tasks."""
-    tasks = session.exec(select(Task)).all()
+    tasks = session.exec(text("SELECT * FROM tasks")).mappings().all()  # type :ignpre
     return tasks
 
 
 @app.get("/tasks/{task_id}")
 async def get_tasks_by_id(task_id: int, session: Session = Depends(get_session)):
     """Returns a single task by id, or 404 if not found."""
-    task = session.get(Task, task_id)
-    if not task:
-        return JSONResponse(
-            status_code=404, content={"error": f"Task {task_id} not found"}
+    task = (
+        session.exec(
+            text("SELECT * FROM tasks WHERE id= :task_id"), params={"task_id": task_id}
         )
+        .mappings()
+        .first()  # type :ignore
+    )
+    if not task:
+        return JSONResponse(status_code=404, content={"error": f"Task not found"})
     return task
 
 
