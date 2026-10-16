@@ -1,0 +1,17 @@
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.12.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      GENERIC_TIMEZONE: Europe/Istanbul
+      TZ: Europe/Istanbul
+      N8N_SSRF_PROTECTION_ENABLED: "true"
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+      N8N_RUNNERS_ENABLED: "true"
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+volumes:
+  n8n_data:
