@@ -19,3 +19,6 @@ class AuthService:
 
     def get_user(self, token: str):
         return self.client.auth.get_user(token)
+
+    def sign_out(self):
+        self.client.auth.sign_out()
