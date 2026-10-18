@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI,Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from auth_service import AuthService
@@ -46,3 +46,19 @@ def log_in(credentials:Credentials):
         "access_token": result.session.access_token,
         "refresh_token": result.session.refresh_token,
     }
+
+@app.get("/public/info")
+def print_public_info():
+    return JSONResponse(status_code=200,content={"message":"Welcome stranger! This info is public."})
+
+@app.get("/protected/profile")
+def protected_profile(authorization: str | None = Header(default=None)):
+    if not authorization:
+        return JSONResponse(status_code=401, content={"error": "Access token required"})
+
+    parts = authorization.split(" ", 1)
+    if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1].strip():
+        return JSONResponse(status_code=401, content={"error": "Access token required"})
+
+    token = parts[1].strip()
+    return {"message": "Token received", "token_length": len(token)}
