@@ -1,9 +1,11 @@
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, Depends, HTTPException, Request, Response
+from fastapi import FastAPI, Depends, HTTPException, Request, Response, Security
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from auth_service import AuthService
+
 load_dotenv()
 
 
@@ -11,16 +13,16 @@ class Credentials(BaseModel):
     email: str | None = None
     password: str | None = None
 
+
+bearer_scheme = HTTPBearer(auto_error=False)
 auth = AuthService()
-def get_current_user(authorization: str | None = Header(default=None)):
-    if not authorization:
+
+
+def get_current_user(credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme)):
+    if credentials is None or not credentials.credentials.strip():
         raise HTTPException(status_code=401, detail="Access token required")
 
-    parts = authorization.split(" ", 1)
-    if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1].strip():
-        raise HTTPException(status_code=401, detail="Access token required")
-
-    token = parts[1].strip()
+    token = credentials.credentials.strip()
     try:
         result = auth.get_user(token)
     except Exception:
@@ -32,7 +34,9 @@ def get_current_user(authorization: str | None = Header(default=None)):
 
     return user, token
 
+
 app = FastAPI()
+
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
@@ -54,8 +58,9 @@ def sign_up(credentials: Credentials):
         return JSONResponse(status_code=400, content={"error": str(e)})
     return result.user.model_dump() if result.user else {}
 
-@app.post("/auth/login",status_code=200)
-def log_in(credentials:Credentials):
+
+@app.post("/auth/login", status_code=200)
+def log_in(credentials: Credentials):
     if not credentials.email or not credentials.password:
         return JSONResponse(status_code=400, content={"error": "Bad Request"})
     try:
@@ -69,9 +74,17 @@ def log_in(credentials:Credentials):
         "refresh_token": result.session.refresh_token,
     }
 
+
+@app.post("/auth/logout", status_code=204)
+def log_out(auth_data=Depends(get_current_user)):
+    auth.sign_out()
+    return Response(status_code=204)
+
+
 @app.get("/public/info")
-def print_public_info():
-    return JSONResponse(status_code=200,content={"message":"Welcome stranger! This info is public."})
+def public_info():
+    return {"message": "Welcome stranger! This info is public."}
+
 
 @app.get("/protected/profile")
 def protected_profile(auth_data=Depends(get_current_user)):
@@ -82,9 +95,6 @@ def protected_profile(auth_data=Depends(get_current_user)):
         "created_at": user.created_at,
     }
 
-@app.post("/auth/logout",status_code=204)
-def log_out(auth_data=Depends(get_current_user)):
-    auth.sign_out()
 
 @app.get("/protected/dashboard")
 def protected_dashboard(auth_data=Depends(get_current_user)):
