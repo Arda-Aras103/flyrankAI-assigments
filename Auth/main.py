@@ -51,7 +51,7 @@ def log_in(credentials:Credentials):
 def print_public_info():
     return JSONResponse(status_code=200,content={"message":"Welcome stranger! This info is public."})
 
-@app.get("/protected/profile")
+@app.get("/protected/profile",status_code=200)
 def protected_profile(authorization: str | None = Header(default=None)):
     if not authorization:
         return JSONResponse(status_code=401, content={"error": "Access token required"})
@@ -61,4 +61,18 @@ def protected_profile(authorization: str | None = Header(default=None)):
         return JSONResponse(status_code=401, content={"error": "Access token required"})
 
     token = parts[1].strip()
-    return {"message": "Token received", "token_length": len(token)}
+
+    try:
+        result = auth.get_user(token)
+    except Exception:
+        return JSONResponse(status_code=401, content={"error": "Invalid or expired token"})
+
+    user = getattr(result, "user", None) if result else None
+    if user is None:
+        return JSONResponse(status_code=401, content={"error": "Invalid or expired token"})
+
+    return {
+        "id": user.id,
+        "email": user.email,
+        "created_at": user.created_at,
+    }

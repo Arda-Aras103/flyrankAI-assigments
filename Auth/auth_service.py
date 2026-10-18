@@ -16,3 +16,6 @@ class AuthService:
         return self.client.auth.sign_in_with_password(
             {"email": email, "password": password}
         )
+
+    def get_user(self, token: str):
+        return self.client.auth.get_user(token)
