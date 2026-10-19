@@ -11,7 +11,10 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
-
+*.pyc
+output/
+*.csv
+*.json
 # IDE
 .vscode/
 .idea/
