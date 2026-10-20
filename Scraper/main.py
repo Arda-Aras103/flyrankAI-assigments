@@ -1,8 +1,10 @@
 import os
+import re
 import time
 import urllib.request
 import urllib.error
-from urllib.parse import urljoin
+from datetime import datetime, timezone
+from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
@@ -16,8 +18,8 @@ DELAY_SECONDS = 0.5
 _last_request_at = None
 
 
-def cache_path(page_number):
-    return os.path.join(CACHE_DIR, f"catalogue-page-{page_number}.html")
+def cache_path(name):
+    return os.path.join(CACHE_DIR, name)
 
 
 def fetch_page(url):
@@ -44,9 +46,9 @@ def fetch_page(url):
     return None
 
 
-def load_page(page_number, url):
+def load_html(filename, url):
     """Returns HTML from cache if present, otherwise fetches and caches it."""
-    path = cache_path(page_number)
+    path = cache_path(filename)
 
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
@@ -81,30 +83,113 @@ def extract_book_links(html, page_url):
     return book_links, next_url
 
 
-def main():
-    all_links = []
-    pages_done = 0
+def discover_catalogue():
+    """Returns a list of (book_url, source_page_url) pairs, de-duplicated by book_url."""
+    pairs = []
     url = START_URL
 
     for page_number in range(1, MAX_PAGES + 1):
-        html = load_page(page_number, url)
+        html = load_html(f"catalogue-page-{page_number}.html", url)
         if html is None:
             break
 
-        pages_done += 1
         links, next_url = extract_book_links(html, url)
-        all_links.extend(links)
+        pairs.extend((link, url) for link in links)
 
         if page_number < MAX_PAGES:
             if next_url is None:
                 break
             url = next_url
 
-    unique_links = list(dict.fromkeys(all_links))
+    seen = set()
+    unique = []
+    for book_url, source_page in pairs:
+        if book_url not in seen:
+            seen.add(book_url)
+            unique.append((book_url, source_page))
+    return unique
 
-    print(f"catalogue_pages={pages_done}")
-    print(f"discovered={len(all_links)}")
-    print(f"unique_urls={len(unique_links)}")
+
+def cache_name_for(book_url):
+    """Builds a filename from the book's URL path, e.g. a-light-in-the-attic_1000.html."""
+    path = urlparse(book_url).path.rstrip("/")
+    slug = path.split("/")[-2] if path.endswith("index.html") else path.split("/")[-1]
+    slug = re.sub(r"[^A-Za-z0-9_-]", "_", slug)
+    return f"book-{slug}.html"
+
+
+def text_or_none(node):
+    if node is None:
+        return None
+    text = node.get_text(strip=True)
+    return text or None
+
+
+def parse_book(html, product_url, source_page, fetched_at):
+    soup = BeautifulSoup(html, "html.parser")
+    product = soup.select_one("article.product_page")
+    if product is None:
+        return None
+
+    title = text_or_none(product.select_one("div.product_main h1"))
+
+    price_text = text_or_none(product.select_one("div.product_main p.price_color"))
+
+    availability_node = product.select_one("div.product_main p.instock.availability")
+    availability_text = (
+        " ".join(availability_node.get_text(separator=" ", strip=True).split())
+        if availability_node
+        else None
+    )
+
+    rating_node = product.select_one("div.product_main p.star-rating")
+    rating_text = None
+    if rating_node:
+        classes = [c for c in rating_node.get("class", []) if c != "star-rating"]
+        rating_text = classes[0] if classes else None
+
+    description_node = product.select_one("#product_description + p")
+    description = text_or_none(description_node)
+
+    return {
+        "title": title,
+        "product_url": product_url,
+        "price_text": price_text,
+        "availability_text": availability_text,
+        "rating_text": rating_text,
+        "description": description,
+        "source_page": source_page,
+        "fetched_at": fetched_at,
+    }
+
+
+def main():
+    catalogue = discover_catalogue()
+    records = []
+    skipped = 0
+
+    for book_url, source_page in catalogue:
+        html = load_html(cache_name_for(book_url), book_url)
+        if html is None:
+            skipped += 1
+            continue
+
+        fetched_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        record = parse_book(html, book_url, source_page, fetched_at)
+        if record is None:
+            print(f"FAILED: no product area found in {book_url}")
+            skipped += 1
+            continue
+        records.append(record)
+
+    if records:
+        print("Sample record:")
+        for key, value in records[0].items():
+            print(f"  {key}: {value!r}")
+
+    print(f"detail_pages={len(records)}")
+    if skipped:
+        print(f"skipped={skipped}")
 
 
 if __name__ == "__main__":
